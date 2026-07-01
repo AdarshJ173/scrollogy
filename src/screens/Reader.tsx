@@ -567,23 +567,27 @@ export default function Reader() {
 
       {/* Floating Selection Toolbar */}
       {selectionRect && selectedText && (
-        <div style={{
-          position: 'fixed',
-          top: selectionRect.top - 52,
-          left: Math.max(16, Math.min(window.innerWidth - 230, selectionRect.left + (selectionRect.width / 2) - 100)),
-          height: 38,
-          background: 'rgba(30, 27, 22, 0.95)',
-          backdropFilter: 'blur(8px)',
-          WebkitBackdropFilter: 'blur(8px)',
-          border: '1px solid rgba(255, 255, 255, 0.15)',
-          borderRadius: 19,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          padding: '0 12px',
-          zIndex: 300,
-        }}>
+        <div 
+          onMouseDown={(e) => e.preventDefault()}
+          onPointerDown={(e) => e.preventDefault()}
+          style={{
+            position: 'fixed',
+            top: selectionRect.top - 52,
+            left: Math.max(16, Math.min(window.innerWidth - 230, selectionRect.left + (selectionRect.width / 2) - 100)),
+            height: 38,
+            background: 'rgba(30, 27, 22, 0.95)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            borderRadius: 19,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '0 12px',
+            zIndex: 300,
+          }}
+        >
           <button onClick={() => applyAnnotation('highlight', '#FBBF24')} style={{ width: 16, height: 16, borderRadius: '50%', background: '#FBBF24', border: 'none', cursor: 'pointer' }} title="Yellow Highlight" />
           <button onClick={() => applyAnnotation('highlight', '#34D399')} style={{ width: 16, height: 16, borderRadius: '50%', background: '#34D399', border: 'none', cursor: 'pointer' }} title="Green Highlight" />
           <button onClick={() => applyAnnotation('highlight', '#60A5FA')} style={{ width: 16, height: 16, borderRadius: '50%', background: '#60A5FA', border: 'none', cursor: 'pointer' }} title="Blue Highlight" />
