@@ -57,7 +57,6 @@ export default function Reader() {
   const [prevParagraph, setPrevParagraph] = useState<Paragraph | null>(null);
   const [nextParagraph, setNextParagraph] = useState<Paragraph | null>(null);
 
-  // Restore progress from DB on mount
   useEffect(() => {
     if (!currentBookId) return;
     
@@ -76,18 +75,15 @@ export default function Reader() {
     loadAnnotations(currentBookId);
   }, [currentBookId, loadAnnotations, goToParagraph]);
 
-  // Load paragraphs on demand
   useEffect(() => {
     if (!currentBookId || !isLoaded) return;
 
-    // Load active paragraph
     db.paragraphs
       .where('bookId').equals(currentBookId)
       .and(p => p.index === currentParagraphIndex)
       .first()
       .then(p => setCurrentParagraph(p || null));
 
-    // Load previous paragraph
     if (currentParagraphIndex > 0) {
       db.paragraphs
         .where('bookId').equals(currentBookId)
@@ -98,7 +94,6 @@ export default function Reader() {
       setPrevParagraph(null);
     }
 
-    // Load next paragraph
     if (currentParagraphIndex < totalParagraphs - 1) {
       db.paragraphs
         .where('bookId').equals(currentBookId)
@@ -110,7 +105,6 @@ export default function Reader() {
     }
   }, [currentBookId, currentParagraphIndex, totalParagraphs, isLoaded]);
 
-  // Save progress
   useEffect(() => {
     if (!currentBookId || !isLoaded) return;
     
@@ -135,8 +129,6 @@ export default function Reader() {
       });
   }, [currentBookId, currentParagraphIndex, isLoaded]);
 
-  const [dragY, setDragY] = useState(0);
-
   const direction = currentParagraphIndex > prevIndexRef.current ? 1 : -1;
   prevIndexRef.current = currentParagraphIndex;
 
@@ -144,7 +136,7 @@ export default function Reader() {
     ? (currentParagraphIndex / totalParagraphs) * 100 
     : 0;
 
-  const bind = useReaderGestures(setDragY);
+  const { bind, springY } = useReaderGestures();
 
   return (
     <div
@@ -165,7 +157,6 @@ export default function Reader() {
     >
       <ProgressBar progress={progress} />
 
-      {/* Chapter header */}
       <div style={{
         position: 'absolute',
         top: 24,
@@ -200,25 +191,16 @@ export default function Reader() {
               custom={direction}
               variants={PARAGRAPH_VARIANTS}
               initial="enter"
-              animate={{
-                y: dragY,
-                opacity: 1,
-                scale: 1,
-                transition: {
-                  type: 'spring',
-                  stiffness: 280,
-                  damping: 26,
-                }
-              }}
+              animate="center"
               exit="exit"
               style={{
+                y: springY,
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
                 width: '100%',
               }}
             >
-              {/* Previous paragraph snippet */}
               {prevParagraph && (
                 <div 
                   className="paragraph-text"
@@ -240,7 +222,6 @@ export default function Reader() {
                 </div>
               )}
 
-              {/* Previous divider symbol */}
               {prevParagraph && (
                 <div style={{
                   color: 'var(--primary)',
@@ -253,12 +234,10 @@ export default function Reader() {
                 </div>
               )}
 
-              {/* Active paragraph */}
               <div style={{ width: '100%' }}>
                 <ParagraphCard paragraph={currentParagraph} />
               </div>
 
-              {/* Next divider symbol */}
               {nextParagraph && (
                 <div style={{
                   color: 'var(--primary)',
@@ -271,7 +250,6 @@ export default function Reader() {
                 </div>
               )}
 
-              {/* Next paragraph snippet */}
               {nextParagraph && (
                 <div 
                   className="paragraph-text"
@@ -297,7 +275,6 @@ export default function Reader() {
         </AnimatePresence>
       </div>
 
-      {/* Overlays */}
       <HUD progress={progress} />
       <AnimatePresence>
         {isDictionaryOpen && <DictionaryPopup />}
