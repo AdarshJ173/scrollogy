@@ -1,0 +1,5 @@
+/* Reader View Styles */
+.reader-root {
+  user-select: none;
+  -webkit-user-select: none;
+}

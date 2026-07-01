@@ -1,0 +1,85 @@
+@import "@fontsource/inter/index.css";
+@import "@fontsource/merriweather/index.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #F9F7F2;
+  --fg: #4A4437;
+  --card: #F9F7F2;
+  --card-fg: #1F1D17;
+  --primary: #C8823A;
+  --primary-fg: #FFFFFF;
+  --secondary: #EDE8DE;
+  --secondary-fg: #6B6355;
+  --muted: #EAE5D9;
+  --muted-fg: #9B9488;
+  --border: #E3DDD2;
+  --input: #C2BAA8;
+}
+
+[data-theme="dark"] {
+  --bg: #2A2820;
+  --fg: #CFC8B5;
+  --card: #2A2820;
+  --card-fg: #F9F7F2;
+  --primary: #D4924A;
+  --secondary: #201F18;
+  --secondary-fg: #F9F7F2;
+  --muted: #201F18;
+  --muted-fg: #C9C2AF;
+  --border: #3E3C30;
+}
+
+[data-theme="sepia"] {
+  --bg: #F4EBD9;
+  --fg: #3D2B1F;
+  --card: #F4EBD9;
+  --card-fg: #3D2B1F;
+  --primary: #8B5E3C;
+  --secondary: #EDE3D0;
+  --secondary-fg: #8B5E3C;
+  --muted: #EDE3D0;
+  --muted-fg: #8A7B6C;
+  --border: #D9CABB;
+}
+
+[data-theme="true-black"] {
+  --bg: #000000;
+  --fg: #E8E4DC;
+  --card: #000000;
+  --card-fg: #E8E4DC;
+  --primary: #D4924A;
+  --secondary: #121212;
+  --secondary-fg: #E8E4DC;
+  --muted: #0A0A08;
+  --muted-fg: #A29E96;
+  --border: #1A1A14;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--fg);
+  font-family: 'Inter', system-ui, sans-serif;
+  margin: 0;
+  overflow: hidden;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Reading body text — dynamically controlled by font size slider */
+.paragraph-text {
+  font-family: 'Merriweather', Georgia, serif;
+  font-size: var(--reader-font-size, 18px); /* range: 14px–28px */
+  line-height: var(--reader-line-height, 1.85);
+  letter-spacing: 0.01em;
+  color: var(--card-fg);
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+
+/* UI elements */
+.ui-text {
+  font-family: 'Inter', system-ui, sans-serif;
+}
