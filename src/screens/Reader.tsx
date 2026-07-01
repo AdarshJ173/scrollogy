@@ -220,11 +220,6 @@ export default function Reader() {
     <div
       {...bind()}
       className="reader-root select-none"
-      onContextMenu={(e) => {
-        e.preventDefault();
-        haptic.hudToggle();
-        setShowSearchModal(true);
-      }}
       style={{
         position: 'fixed',
         inset: 0,
@@ -381,7 +376,7 @@ export default function Reader() {
       </motion.div>
 
       {searchResults.length === 0 ? (
-        <HUD progress={progress} />
+        <HUD progress={progress} onSearchOpen={() => setShowSearchModal(true)} />
       ) : (
         <div style={{
           position: 'fixed',

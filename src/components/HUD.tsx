@@ -1,11 +1,11 @@
 import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Moon, Sun, Menu } from 'lucide-react';
+import { ChevronLeft, Moon, Sun, Menu, Search } from 'lucide-react';
 import { useReaderStore } from '../store/useReaderStore';
 import { haptic } from '../engine/HapticEngine';
 import { useNavigate } from 'react-router-dom';
 
-export default function HUD({ progress }: { progress: number }) {
+export default function HUD({ progress, onSearchOpen }: { progress: number; onSearchOpen: () => void }) {
   const { isHUDVisible, toggleHUD, theme, setTheme, fontSize, setFontSize, openChapterSidebar } = useReaderStore();
   const navigate = useNavigate();
 
@@ -63,6 +63,16 @@ export default function HUD({ progress }: { progress: number }) {
               {Math.round(progress)}% complete
             </span>
             <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              <button
+                onClick={() => { 
+                  onSearchOpen(); 
+                  haptic.hudToggle(); 
+                }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
+                title="Search in book"
+              >
+                <Search size={18} color="var(--fg)" />
+              </button>
               <button
                 onClick={() => { 
                   openChapterSidebar(); 
