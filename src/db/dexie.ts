@@ -113,6 +113,18 @@ export class FolioDB extends Dexie {
       readingLogs:  '++id, bookId, date, startedAt',
       achievements: 'id, unlockedAt',
     });
+
+    // Version 5: Index lastOpenedAt on books store to support sorting
+    this.version(5).stores({
+      books:        '++id, title, author, fileType, addedAt, lastOpenedAt',
+      paragraphs:   '++id, bookId, index, chapterIndex',
+      progress:     '++id, bookId',
+      annotations:  '++id, bookId, paragraphIndex, type',
+      dictionary:   'word',
+      chapters:     '++id, bookId, chapterIndex',
+      readingLogs:  '++id, bookId, date, startedAt',
+      achievements: 'id, unlockedAt',
+    });
   }
 }
 
