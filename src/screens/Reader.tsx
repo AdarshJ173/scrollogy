@@ -12,6 +12,7 @@ import DictionaryPopup from '../components/DictionaryPopup';
 import ChapterSidebar from '../components/ChapterSidebar';
 import BookInfoSheet from './BookInfo';
 import { ChevronUp, ChevronDown, X } from 'lucide-react';
+import { haptic } from '../engine/HapticEngine';
 
 const CARD_VARIANTS = {
   enter: {
