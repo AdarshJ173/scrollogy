@@ -521,7 +521,7 @@ export default function Library() {
 
   return (
     <div style={{
-      minHeight: '100dvh',
+      height: '100dvh',
       background: 'var(--bg)',
       overflowY: 'auto',
       paddingBottom: 100,
