@@ -68,68 +68,53 @@ export default function Reader() {
   const [searchResults, setSearchResults] = useState<number[]>([]);
   const [currentResultIdx, setCurrentResultIdx] = useState(0);
 
-  const [selectionRect, setSelectionRect] = useState<DOMRect | null>(null);
-  const [selectedText, setSelectedText] = useState('');
-
-  // Track active window text selection bounds
-  useEffect(() => {
-    const handleSelectionChange = () => {
-      const sel = window.getSelection();
-      if (sel && sel.rangeCount > 0 && sel.toString().trim().length > 0) {
-        const range = sel.getRangeAt(0);
-        const rect = range.getBoundingClientRect();
-        setSelectionRect(rect);
-        setSelectedText(sel.toString());
-      } else {
-        setSelectionRect(null);
-        setSelectedText('');
-      }
-    };
-
-    document.addEventListener('selectionchange', handleSelectionChange);
-    return () => {
-      document.removeEventListener('selectionchange', handleSelectionChange);
-    };
-  }, []);
+  const [customSelection, setCustomSelection] = useState<{
+    rect: DOMRect;
+    text: string;
+    paragraphIndex: number;
+  } | null>(null);
+  const [clearCustomSelectionTrigger, setClearCustomSelectionTrigger] = useState(0);
 
   const applyAnnotation = useCallback(async (type: 'highlight' | 'underline', color: string) => {
-    if (!currentBookId || !selectedText) return;
+    if (!currentBookId || !customSelection) return;
     haptic.highlight();
     
     await db.annotations.add({
       bookId: currentBookId,
-      paragraphIndex: currentParagraphIndex,
+      paragraphIndex: customSelection.paragraphIndex,
       type,
-      note: selectedText,
+      note: customSelection.text,
       color,
       createdAt: new Date(),
     });
 
-    window.getSelection()?.removeAllRanges();
+    setClearCustomSelectionTrigger(prev => prev + 1);
+    setCustomSelection(null);
     
     const cur = await db.paragraphs.where({ bookId: currentBookId, index: currentParagraphIndex }).first();
     setCurrentParagraph(cur ? { ...cur } : null);
-  }, [currentBookId, currentParagraphIndex, selectedText]);
+  }, [currentBookId, currentParagraphIndex, customSelection]);
 
   const clearAnnotations = useCallback(async () => {
-    if (!currentBookId || !selectedText) return;
+    if (!currentBookId || !customSelection) return;
     haptic.error();
 
     const matches = await db.annotations
-      .where({ bookId: currentBookId, paragraphIndex: currentParagraphIndex })
+      .where({ bookId: currentBookId, paragraphIndex: customSelection.paragraphIndex })
       .toArray();
 
     for (const ann of matches) {
-      if (ann.id && ann.note && selectedText.toLowerCase().includes(ann.note.toLowerCase())) {
+      if (ann.id && ann.note && customSelection.text.toLowerCase().includes(ann.note.toLowerCase())) {
         await db.annotations.delete(ann.id);
       }
     }
 
-    window.getSelection()?.removeAllRanges();
+    setClearCustomSelectionTrigger(prev => prev + 1);
+    setCustomSelection(null);
 
     const cur = await db.paragraphs.where({ bookId: currentBookId, index: currentParagraphIndex }).first();
     setCurrentParagraph(cur ? { ...cur } : null);
-  }, [currentBookId, currentParagraphIndex, selectedText]);
+  }, [currentBookId, currentParagraphIndex, customSelection]);
 
   useEffect(() => {
     if (!currentBookId) return;
@@ -335,7 +320,13 @@ export default function Reader() {
                 exit="exit"
                 ref={cardRef}
               >
-                <ParagraphCard paragraph={currentParagraph} />
+                <ParagraphCard
+                  paragraph={currentParagraph}
+                  onCustomSelection={(rect, text, paragraphIndex) => {
+                    setCustomSelection({ rect, text, paragraphIndex });
+                  }}
+                  clearCustomSelectionTrigger={clearCustomSelectionTrigger}
+                />
               </motion.div>
             )}
           </AnimatePresence>
@@ -562,14 +553,14 @@ export default function Reader() {
       </AnimatePresence>
 
       {/* Floating Selection Toolbar */}
-      {selectionRect && selectedText && (
+      {customSelection && (
         <div 
           onMouseDown={(e) => e.preventDefault()}
           onPointerDown={(e) => e.preventDefault()}
           style={{
             position: 'fixed',
-            top: selectionRect.top - 52,
-            left: Math.max(16, Math.min(window.innerWidth - 230, selectionRect.left + (selectionRect.width / 2) - 100)),
+            top: customSelection.rect.top - 52,
+            left: Math.max(16, Math.min(window.innerWidth - 230, customSelection.rect.left + (customSelection.rect.width / 2) - 100)),
             height: 38,
             background: 'rgba(30, 27, 22, 0.95)',
             backdropFilter: 'blur(8px)',
