@@ -1,12 +1,12 @@
 import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Moon, Sun } from 'lucide-react';
+import { ChevronLeft, Moon, Sun, Menu } from 'lucide-react';
 import { useReaderStore } from '../store/useReaderStore';
 import { haptic } from '../engine/HapticEngine';
 import { useNavigate } from 'react-router-dom';
 
 export default function HUD({ progress }: { progress: number }) {
-  const { isHUDVisible, toggleHUD, theme, setTheme, fontSize, setFontSize } = useReaderStore();
+  const { isHUDVisible, toggleHUD, theme, setTheme, fontSize, setFontSize, openChapterSidebar } = useReaderStore();
   const navigate = useNavigate();
 
   // Auto-hide after 3 seconds when HUD becomes visible
@@ -62,7 +62,17 @@ export default function HUD({ progress }: { progress: number }) {
             <span style={{ fontFamily: 'Inter', fontSize: 13, color: 'var(--muted-fg)' }}>
               {Math.round(progress)}% complete
             </span>
-            <div style={{ display: 'flex', gap: 4 }}>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              <button
+                onClick={() => { 
+                  openChapterSidebar(); 
+                  haptic.drawerOpen(); 
+                }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
+                title="Table of Contents"
+              >
+                <Menu size={18} color="var(--fg)" />
+              </button>
               <button
                 onClick={() => { 
                   setTheme(theme === 'dark' ? 'light' : 'dark'); 
