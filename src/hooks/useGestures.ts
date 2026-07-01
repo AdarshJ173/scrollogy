@@ -15,8 +15,12 @@ export function useReaderGestures() {
   return useGesture({
     // Scroll — primary navigation
     onWheel: ({ delta: [, dy], event }) => {
-      if (event) {
-        event.preventDefault();
+      if (event && typeof event.preventDefault === 'function') {
+        try {
+          event.preventDefault();
+        } catch (e) {
+          // ignore passive listener error
+        }
       }
       if (dy > 10) { 
         nextParagraph(); 

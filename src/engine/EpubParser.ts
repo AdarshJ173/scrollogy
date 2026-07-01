@@ -8,6 +8,17 @@ export interface ParsedBook {
   paragraphs: Omit<Paragraph, 'id' | 'bookId'>[];
 }
 
+async function blobUrlToBase64(blobUrl: string): Promise<string> {
+  const res = await fetch(blobUrl);
+  const blob = await res.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
 export async function parseEpub(
   arrayBuffer: ArrayBuffer,
   fileName: string
@@ -22,7 +33,10 @@ export async function parseEpub(
   // Extract cover
   let coverUrl: string | undefined;
   try {
-    coverUrl = await book.coverUrl() ?? undefined;
+    const rawCoverUrl = await book.coverUrl();
+    if (rawCoverUrl) {
+      coverUrl = await blobUrlToBase64(rawCoverUrl);
+    }
   } catch {}
 
   // Extract all chapters
