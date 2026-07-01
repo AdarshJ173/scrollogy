@@ -104,7 +104,7 @@ export default function ParagraphCard({ paragraph }: Props) {
   }, []);
 
   return (
-    <div style={{ maxWidth: 680, width: '100%', padding: '32px 0' }}>
+    <div style={{ maxWidth: 680, width: '100%', padding: 0 }}>
       <p
         className="paragraph-text"
         style={{ margin: 0, padding: 0, lineHeight: 'var(--reader-line-height, 1.85)' }}

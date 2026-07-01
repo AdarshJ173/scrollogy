@@ -13,28 +13,26 @@ import ChapterSidebar from '../components/ChapterSidebar';
 import BookInfoSheet from './BookInfo';
 
 const CARD_VARIANTS = {
-  enter: (dir: number) => ({
-    y: dir > 0 ? 60 : -60,
+  enter: {
     opacity: 0,
-    scale: 0.97,
-  }),
+    scale: 0.99,
+  },
   center: {
-    y: 0,
     opacity: 1,
     scale: 1,
     transition: {
-      type: 'spring' as const,
-      stiffness: 300,
-      damping: 28,
-      mass: 0.7,
+      duration: 0.16,
+      ease: 'easeOut',
     },
   },
-  exit: (dir: number) => ({
-    y: dir > 0 ? -60 : 60,
+  exit: {
     opacity: 0,
-    scale: 0.97,
-    transition: { duration: 0.14, ease: 'easeIn' },
-  }),
+    scale: 0.99,
+    transition: {
+      duration: 0.12,
+      ease: 'easeIn',
+    },
+  },
 };
 
 const GHOST_OFFSET = 48;
@@ -231,22 +229,6 @@ export default function Reader() {
           </div>
         )}
 
-        {prevParagraph && (
-          <div style={{
-            position: 'absolute',
-            top: `calc(50vh - ${ghostOffsetPx}px - 4px)`,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            color: 'var(--primary)',
-            opacity: 0.3,
-            fontSize: 18,
-            fontFamily: 'Merriweather, serif',
-            lineHeight: 1,
-          }}>
-            ¶
-          </div>
-        )}
-
         <div
           style={{
             position: 'absolute',
@@ -275,22 +257,6 @@ export default function Reader() {
             )}
           </AnimatePresence>
         </div>
-
-        {nextParagraph && (
-          <div style={{
-            position: 'absolute',
-            top: `calc(50vh + ${ghostOffsetPx}px - 4px)`,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            color: 'var(--primary)',
-            opacity: 0.3,
-            fontSize: 18,
-            fontFamily: 'Merriweather, serif',
-            lineHeight: 1,
-          }}>
-            ¶
-          </div>
-        )}
 
         {nextParagraph && (
           <div
