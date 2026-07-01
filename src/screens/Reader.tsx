@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useReaderStore } from '../store/useReaderStore';
 import { useReaderGestures } from '../hooks/useGestures';
 import { useAnnotationStore } from '../store/useAnnotationStore';
-import { db } from '../db/dexie';
+import { db, sessionManager } from '../db/dexie';
 import type { Paragraph } from '../db/dexie';
 import ParagraphCard from '../components/ParagraphCard';
 import ProgressBar from '../components/ProgressBar';
@@ -110,6 +110,19 @@ export default function Reader() {
       }
     });
   }, [currentBookId, currentParagraphIndex, isLoaded]);
+
+  // ── Session tracking ──────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!currentBookId || !isLoaded) return;
+    sessionManager.start(currentBookId);
+    return () => { sessionManager.end(); };
+  }, [currentBookId, isLoaded]);
+
+  // ── Advance session on paragraph change ──────────────────────────────────
+  useEffect(() => {
+    if (!currentParagraph) return;
+    sessionManager.advance(currentParagraph.wordCount);
+  }, [currentParagraphIndex]);
 
   useEffect(() => {
     if (!cardRef.current) return;
