@@ -19,7 +19,7 @@ export default function ParagraphCard({ paragraph }: Props) {
       .where({ bookId: currentBookId, paragraphIndex: paragraph.index })
       .toArray()
       .then(setAnnotations);
-  }, [currentBookId, paragraph.index]);
+  }, [currentBookId, paragraph.index, paragraph]);
 
   // Unified caret click selection resolver
   const handleTextClick = useCallback((e: React.MouseEvent<HTMLParagraphElement>) => {

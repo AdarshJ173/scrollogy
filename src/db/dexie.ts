@@ -126,6 +126,18 @@ export class FolioDB extends Dexie {
       readingLogs:  '++id, bookId, date, startedAt',
       achievements: 'id, unlockedAt',
     });
+
+    // Version 6: Add compound indexes [bookId+index] and [bookId+paragraphIndex]
+    this.version(6).stores({
+      books:        '++id, title, author, fileType, addedAt, lastOpenedAt',
+      paragraphs:   '++id, bookId, index, chapterIndex, [bookId+index]',
+      progress:     '++id, bookId',
+      annotations:  '++id, bookId, paragraphIndex, type, [bookId+paragraphIndex]',
+      dictionary:   'word',
+      chapters:     '++id, bookId, chapterIndex',
+      readingLogs:  '++id, bookId, date, startedAt',
+      achievements: 'id, unlockedAt',
+    });
   }
 }
 
