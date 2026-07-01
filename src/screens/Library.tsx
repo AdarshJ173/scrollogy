@@ -123,14 +123,15 @@ const INTENSITY_COLORS = [
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 function HeatmapGrid({ cells }: { cells: DayCell[] }) {
+  const WEEKS_COUNT = 20;
   const weeks: DayCell[][] = [];
-  for (let w = 0; w < 12; w++) {
+  for (let w = 0; w < WEEKS_COUNT; w++) {
     weeks.push(cells.slice(w * 7, w * 7 + 7));
   }
 
   return (
-    <div>
-      <div style={{ display: 'flex', gap: 4 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+      <div style={{ display: 'flex', gap: 4, justifyContent: 'center', width: '100%' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginRight: 2 }}>
           {DAY_LABELS.map((d, i) => (
             <div key={i} style={{
@@ -149,7 +150,7 @@ function HeatmapGrid({ cells }: { cells: DayCell[] }) {
                 title={cell.minutesRead > 0 ? `${cell.date}: ${cell.minutesRead}m` : cell.date}
                 initial={{ opacity: 0, scale: 0.6 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: (wi * 7 + di) * 0.002, duration: 0.2 }}
+                transition={{ delay: (wi * 7 + di) * 0.0015, duration: 0.2 }}
                 style={{
                   width: 10,
                   height: 10,
@@ -163,7 +164,7 @@ function HeatmapGrid({ cells }: { cells: DayCell[] }) {
       </div>
       <div style={{
         display: 'flex', alignItems: 'center', gap: 4,
-        marginTop: 8, justifyContent: 'flex-end',
+        marginTop: 10, width: '100%', justifyContent: 'center',
       }}>
         <span style={{ fontFamily: 'Inter', fontSize: 9, color: 'var(--muted-fg)' }}>Less</span>
         {INTENSITY_COLORS.map((c, i) => (
@@ -393,7 +394,7 @@ export default function Library() {
       const today     = new Date();
       const todayStr  = isoDate(today);
 
-      const cutoff    = isoDate(addDays(today, -83));
+      const cutoff    = isoDate(addDays(today, -139));
       const logs      = await db.readingLogs
         .where('date').between(cutoff, todayStr, true, true)
         .toArray();
@@ -408,7 +409,7 @@ export default function Library() {
       const maxMins  = allMins.length ? Math.max(...allMins) : 1;
 
       const heatmapCells: DayCell[] = [];
-      for (let i = 83; i >= 0; i--) {
+      for (let i = 139; i >= 0; i--) {
         const d    = addDays(today, -i);
         const ds   = isoDate(d);
         const mins = dayMap.get(ds) ?? 0;
