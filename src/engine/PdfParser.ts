@@ -194,63 +194,57 @@ export async function parsePdf(
   const p90      = allXs[Math.floor(allXs.length * 0.90)] ?? 9999;
   const X_MARGIN = (p90 - p10) * 0.15;
 
-  const cleanedLines: TextLine[] = [];
-
-  for (let pi = 0; pi < allPageLines.length; pi++) {
-    const lines    = allPageLines[pi];
-    const pageNum  = pi + 1;
-
-    if (pageNum <= 2) {
-      const total = lines.map(l => l.text).join(' ').length;
-      if (total < 200) continue;
-    }
-
-    for (const line of lines) {
-      if (runningHeaders.has(line.text.trim().toLowerCase())) continue;
-      if (isJunkLine(line.text, modalHeight, line.height)) continue;
-      if (line.x < p10 - X_MARGIN || line.x > p90 + X_MARGIN) continue;
-
-      cleanedLines.push(line);
-    }
-  }
-
-  const fullText    = assembleText(cleanedLines);
-  const rawParas    = splitIntoParagraphs(fullText);
   const paragraphs: Omit<Paragraph, 'id' | 'bookId'>[] = [];
   const chapters:   ChapterBoundary[] = [];
   let   globalIndex = 0;
   let   chapterIdx  = 0;
   let   pendingChapterTitle: string | null = null;
 
-  for (const text of rawParas) {
-    if (isJunkParagraph(text)) continue;
+  for (let pi = 0; pi < allPageLines.length; pi++) {
+    const lines    = allPageLines[pi];
+    const pageNum  = pi + 1;
 
-    const words = text.split(/\s+/);
-    const isTitle = words.length <= 8
-      && (/^(chapter|part|section)\s+/i.test(text) || /^[A-Z\s\d.]+$/.test(text));
-
-    if (isTitle) {
-      pendingChapterTitle = text;
-      chapterIdx++;
-      continue;
-    }
-
-    if (pendingChapterTitle !== null) {
-      chapters.push({
-        chapterIndex: chapterIdx,
-        chapterTitle: pendingChapterTitle,
-        firstParagraphIndex: globalIndex,
-      });
-      pendingChapterTitle = null;
-    }
-
-    paragraphs.push({
-      index: globalIndex++,
-      chapterIndex: chapterIdx,
-      chapterTitle: chapters[chapters.length - 1]?.chapterTitle ?? 'Chapter 1',
-      text: text.trim(),
-      wordCount: text.trim().split(/\s+/).length,
+    const pageCleaned = lines.filter(line => {
+      if (runningHeaders.has(line.text.trim().toLowerCase())) return false;
+      if (isJunkLine(line.text, modalHeight, line.height)) return false;
+      if (line.x < p10 - X_MARGIN || line.x > p90 + X_MARGIN) return false;
+      return true;
     });
+
+    const pageText = assembleText(pageCleaned);
+    const rawParas = splitIntoParagraphs(pageText);
+
+    for (const text of rawParas) {
+      if (isJunkParagraph(text)) continue;
+
+      const words = text.split(/\s+/);
+      const isTitle = words.length <= 8
+        && (/^(chapter|part|section)\s+/i.test(text) || /^[A-Z\s\d.]+$/.test(text));
+
+      if (isTitle) {
+        pendingChapterTitle = text;
+        chapterIdx++;
+        continue;
+      }
+
+      if (pendingChapterTitle !== null) {
+        chapters.push({
+          chapterIndex: chapterIdx,
+          chapterTitle: pendingChapterTitle,
+          firstParagraphIndex: globalIndex,
+        });
+        pendingChapterTitle = null;
+      }
+
+      paragraphs.push({
+        index: globalIndex++,
+        chapterIndex: chapterIdx,
+        chapterTitle: chapters[chapters.length - 1]?.chapterTitle ?? 'Chapter 1',
+        text: text.trim(),
+        wordCount: text.trim().split(/\s+/).length,
+        pageNum,
+      });
+    }
   }
   // Extract cover
   let coverUrl: string | undefined;

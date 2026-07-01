@@ -23,6 +23,7 @@ export interface Paragraph {
   chapterTitle: string;
   text: string;
   wordCount: number;
+  pageNum?: number;
 }
 
 export interface ReadingProgress {
