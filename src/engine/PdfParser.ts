@@ -9,6 +9,7 @@ export interface ParsedBook {
   title: string;
   paragraphs: Omit<Paragraph, 'id' | 'bookId'>[];
   chapters: ChapterBoundary[];
+  coverUrl?: string;
   totalPages: number;
 }
 
@@ -251,6 +252,31 @@ export async function parsePdf(
       wordCount: text.trim().split(/\s+/).length,
     });
   }
+  // Extract cover
+  let coverUrl: string | undefined;
+  try {
+    const page = await pdf.getPage(1);
+    const viewport = page.getViewport({ scale: 1.0 });
+    const desiredWidth = 320;
+    const scale = desiredWidth / viewport.width;
+    const scaledViewport = page.getViewport({ scale });
 
-  return { title, paragraphs, chapters, totalPages };
+    const canvas = document.createElement('canvas');
+    canvas.width = scaledViewport.width;
+    canvas.height = scaledViewport.height;
+    const context = canvas.getContext('2d');
+
+    if (context) {
+      const renderContext = {
+        canvasContext: context,
+        viewport: scaledViewport,
+      };
+      await page.render(renderContext).promise;
+      coverUrl = canvas.toDataURL('image/jpeg', 0.85);
+    }
+  } catch (e) {
+    console.warn('[FOLIO] Failed to render PDF cover:', e);
+  }
+
+  return { title, paragraphs, chapters, coverUrl, totalPages };
 }
