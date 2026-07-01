@@ -195,24 +195,30 @@ export default function Reader() {
               exit="exit"
               style={{
                 y: springY,
+                position: 'relative',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
+                justifyContent: 'center',
                 width: '100%',
               }}
             >
+              {/* Previous paragraph snippet - positioned above */}
               {prevParagraph && (
                 <div 
                   className="paragraph-text"
                   style={{
+                    position: 'absolute',
+                    bottom: '100%',
+                    left: 0,
+                    right: 0,
+                    marginBottom: 36,
                     opacity: 0.35,
                     transform: 'scale(0.96)',
                     textAlign: 'left',
-                    width: '100%',
                     lineHeight: 'var(--reader-line-height, 1.85)',
                     fontSize: 'calc(var(--reader-font-size, 18px) - 2px)',
-                    marginBottom: 16,
-                    maxHeight: '120px',
+                    maxHeight: '140px',
                     overflow: 'hidden',
                     maskImage: 'linear-gradient(to bottom, black 50%, transparent 100%)',
                     WebkitMaskImage: 'linear-gradient(to bottom, black 50%, transparent 100%)',
@@ -222,46 +228,27 @@ export default function Reader() {
                 </div>
               )}
 
-              {prevParagraph && (
-                <div style={{
-                  color: 'var(--primary)',
-                  opacity: 0.4,
-                  fontSize: 22,
-                  margin: '8px 0 16px',
-                  fontFamily: 'Merriweather',
-                }}>
-                  ¶
-                </div>
-              )}
-
+              {/* Active centered paragraph card */}
               <div style={{ width: '100%' }}>
                 <ParagraphCard paragraph={currentParagraph} />
               </div>
 
-              {nextParagraph && (
-                <div style={{
-                  color: 'var(--primary)',
-                  opacity: 0.4,
-                  fontSize: 22,
-                  margin: '16px 0 8px',
-                  fontFamily: 'Merriweather',
-                }}>
-                  ¶
-                </div>
-              )}
-
+              {/* Next paragraph snippet - positioned below */}
               {nextParagraph && (
                 <div 
                   className="paragraph-text"
                   style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    marginTop: 36,
                     opacity: 0.35,
                     transform: 'scale(0.96)',
                     textAlign: 'left',
-                    width: '100%',
                     lineHeight: 'var(--reader-line-height, 1.85)',
                     fontSize: 'calc(var(--reader-font-size, 18px) - 2px)',
-                    marginTop: 16,
-                    maxHeight: '120px',
+                    maxHeight: '140px',
                     overflow: 'hidden',
                     maskImage: 'linear-gradient(to top, black 50%, transparent 100%)',
                     WebkitMaskImage: 'linear-gradient(to top, black 50%, transparent 100%)',
