@@ -92,8 +92,18 @@ export class FolioDB extends Dexie {
   constructor() {
     super('FolioDB');
 
-    // Version 3: original + chapters + readingLogs + achievements
+    // Version 3: intermediate schema
     this.version(3).stores({
+      books:        '++id, title, author, fileType, addedAt',
+      paragraphs:   '++id, bookId, index, chapterIndex',
+      progress:     '++id, bookId',
+      annotations:  '++id, bookId, paragraphIndex, type',
+      dictionary:   'word',
+      chapters:     '++id, bookId, chapterIndex',
+    });
+
+    // Version 4: Introduce readingLogs and achievements stores
+    this.version(4).stores({
       books:        '++id, title, author, fileType, addedAt',
       paragraphs:   '++id, bookId, index, chapterIndex',
       progress:     '++id, bookId',
