@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useReaderStore } from '../store/useReaderStore';
 import { useReaderGestures } from '../hooks/useGestures';
@@ -66,6 +66,69 @@ export default function Reader() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<number[]>([]);
   const [currentResultIdx, setCurrentResultIdx] = useState(0);
+
+  const [selectionRect, setSelectionRect] = useState<DOMRect | null>(null);
+  const [selectedText, setSelectedText] = useState('');
+
+  // Track active window text selection bounds
+  useEffect(() => {
+    const handleSelectionChange = () => {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0 && sel.toString().trim().length > 0) {
+        const range = sel.getRangeAt(0);
+        const rect = range.getBoundingClientRect();
+        setSelectionRect(rect);
+        setSelectedText(sel.toString());
+      } else {
+        setSelectionRect(null);
+        setSelectedText('');
+      }
+    };
+
+    document.addEventListener('selectionchange', handleSelectionChange);
+    return () => {
+      document.removeEventListener('selectionchange', handleSelectionChange);
+    };
+  }, []);
+
+  const applyAnnotation = useCallback(async (type: 'highlight' | 'underline', color: string) => {
+    if (!currentBookId || !selectedText) return;
+    haptic.highlight();
+    
+    await db.annotations.add({
+      bookId: currentBookId,
+      paragraphIndex: currentParagraphIndex,
+      type,
+      note: selectedText,
+      color,
+      createdAt: new Date(),
+    });
+
+    window.getSelection()?.removeAllRanges();
+    
+    const cur = await db.paragraphs.where({ bookId: currentBookId, index: currentParagraphIndex }).first();
+    setCurrentParagraph(cur ? { ...cur } : null);
+  }, [currentBookId, currentParagraphIndex, selectedText]);
+
+  const clearAnnotations = useCallback(async () => {
+    if (!currentBookId || !selectedText) return;
+    haptic.error();
+
+    const matches = await db.annotations
+      .where({ bookId: currentBookId, paragraphIndex: currentParagraphIndex })
+      .toArray();
+
+    for (const ann of matches) {
+      if (ann.id && ann.note && selectedText.toLowerCase().includes(ann.note.toLowerCase())) {
+        await db.annotations.delete(ann.id);
+      }
+    }
+
+    window.getSelection()?.removeAllRanges();
+
+    const cur = await db.paragraphs.where({ bookId: currentBookId, index: currentParagraphIndex }).first();
+    setCurrentParagraph(cur ? { ...cur } : null);
+  }, [currentBookId, currentParagraphIndex, selectedText]);
 
   useEffect(() => {
     if (!currentBookId) return;
@@ -501,6 +564,60 @@ export default function Reader() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Floating Selection Toolbar */}
+      {selectionRect && selectedText && (
+        <div style={{
+          position: 'fixed',
+          top: selectionRect.top - 52,
+          left: Math.max(16, Math.min(window.innerWidth - 230, selectionRect.left + (selectionRect.width / 2) - 100)),
+          height: 38,
+          background: 'rgba(30, 27, 22, 0.95)',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
+          border: '1px solid rgba(255, 255, 255, 0.15)',
+          borderRadius: 19,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          padding: '0 12px',
+          zIndex: 300,
+        }}>
+          <button onClick={() => applyAnnotation('highlight', '#FBBF24')} style={{ width: 16, height: 16, borderRadius: '50%', background: '#FBBF24', border: 'none', cursor: 'pointer' }} title="Yellow Highlight" />
+          <button onClick={() => applyAnnotation('highlight', '#34D399')} style={{ width: 16, height: 16, borderRadius: '50%', background: '#34D399', border: 'none', cursor: 'pointer' }} title="Green Highlight" />
+          <button onClick={() => applyAnnotation('highlight', '#60A5FA')} style={{ width: 16, height: 16, borderRadius: '50%', background: '#60A5FA', border: 'none', cursor: 'pointer' }} title="Blue Highlight" />
+          <button onClick={() => applyAnnotation('highlight', '#C084FC')} style={{ width: 16, height: 16, borderRadius: '50%', background: '#C084FC', border: 'none', cursor: 'pointer' }} title="Purple Highlight" />
+          
+          <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.2)' }} />
+
+          <button
+            onClick={() => applyAnnotation('underline', 'var(--primary)')}
+            style={{
+              background: 'none', border: 'none', color: '#fff', cursor: 'pointer',
+              fontFamily: 'Inter', fontSize: 11, fontWeight: 700, textDecoration: 'underline',
+              padding: '2px 4px'
+            }}
+            title="Underline"
+          >
+            U
+          </button>
+
+          <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.2)' }} />
+
+          <button
+            onClick={clearAnnotations}
+            style={{
+              background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer',
+              fontFamily: 'Inter', fontSize: 9, fontWeight: 700,
+              padding: '2px 4px'
+            }}
+            title="Clear Highlight"
+          >
+            CLEAR
+          </button>
+        </div>
+      )}
 
       <AnimatePresence>
         {isDictionaryOpen && <DictionaryPopup />}

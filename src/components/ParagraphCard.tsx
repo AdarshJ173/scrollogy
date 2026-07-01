@@ -1,132 +1,105 @@
-import React, { useRef, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useReaderStore } from '../store/useReaderStore';
 import { haptic } from '../engine/HapticEngine';
-import type { Paragraph } from '../db/dexie';
+import { db } from '../db/dexie';
+import type { Paragraph, Annotation } from '../db/dexie';
 
 interface Props {
   paragraph: Paragraph;
 }
 
-// Threshold: pointer must move less than this to count as a tap (not a scroll)
-const TAP_MOVE_THRESHOLD = 12;
-// Long press duration
-const LONG_PRESS_MS = 480;
-
 export default function ParagraphCard({ paragraph }: Props) {
-  const { openDictionary } = useReaderStore();
+  const { openDictionary, currentBookId } = useReaderStore();
+  const [annotations, setAnnotations] = useState<Annotation[]>([]);
 
-  // Per-word interaction state — stored as refs to avoid re-renders
-  const pressState = useRef<{
-    word: string;
-    startX: number;
-    startY: number;
-    timer: ReturnType<typeof setTimeout> | null;
-    didLongPress: boolean;
-    pointerId: number;
-  } | null>(null);
+  // Fetch highlights for this paragraph
+  useEffect(() => {
+    if (!currentBookId) return;
+    db.annotations
+      .where({ bookId: currentBookId, paragraphIndex: paragraph.index })
+      .toArray()
+      .then(setAnnotations);
+  }, [currentBookId, paragraph.index]);
 
-  const words = paragraph.text.split(/\s+/);
-
-  const handlePointerDown = useCallback((word: string, e: React.PointerEvent<HTMLSpanElement>) => {
-    // Only capture if it's a primary pointer
-    if (!e.isPrimary) return;
-
-    // Cancel any previous press state
-    if (pressState.current?.timer) clearTimeout(pressState.current.timer);
-
-    const timer = setTimeout(() => {
-      if (!pressState.current) return;
-      pressState.current.didLongPress = true;
-      haptic.longPress();
-      const clean = pressState.current.word.replace(/[^a-zA-Z'\u2019-]/g, '');
-      if (clean.length > 1) openDictionary(clean);
-    }, LONG_PRESS_MS);
-
-    pressState.current = {
-      word,
-      startX: e.clientX,
-      startY: e.clientY,
-      timer,
-      didLongPress: false,
-      pointerId: e.pointerId,
-    };
-
-    // Capture pointer to track moves even outside this element
-    try { (e.target as HTMLElement).setPointerCapture(e.pointerId); } catch {}
-  }, [openDictionary]);
-
-  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLSpanElement>) => {
-    if (!pressState.current || e.pointerId !== pressState.current.pointerId) return;
-    
-    const dx = e.clientX - pressState.current.startX;
-    const dy = e.clientY - pressState.current.startY;
-    const dist = Math.hypot(dx, dy);
-
-    // Cancel long press if user started moving (they're scrolling)
-    if (dist > TAP_MOVE_THRESHOLD && pressState.current.timer) {
-      clearTimeout(pressState.current.timer);
-      pressState.current.timer = null;
+  // Unified caret click selection resolver
+  const handleTextClick = useCallback((e: React.MouseEvent<HTMLParagraphElement>) => {
+    const selection = window.getSelection();
+    if (selection && selection.toString().trim().length > 0) {
+      // Selection active: let user use the floating highlight bar
+      return;
     }
-  }, []);
 
-  const handlePointerUp = useCallback((e: React.PointerEvent<HTMLSpanElement>) => {
-    if (!pressState.current || e.pointerId !== pressState.current.pointerId) return;
+    // Determine caretaker click target word
+    const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+    if (!range) return;
 
-    const { word, startX, startY, timer, didLongPress } = pressState.current;
+    const node = range.startContainer;
+    if (node.nodeType !== Node.TEXT_NODE) return;
 
-    // Clear timer
-    if (timer) clearTimeout(timer);
-    pressState.current = null;
+    const text = node.textContent || '';
+    const offset = range.startOffset;
 
-    // Release capture
-    try { (e.target as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
+    let start = offset;
+    while (start > 0 && /\w/.test(text[start - 1])) {
+      start--;
+    }
+    let end = offset;
+    while (end < text.length && /\w/.test(text[end])) {
+      end++;
+    }
 
-    // If it was already handled as a long press, do nothing
-    if (didLongPress) return;
-
-    // Check movement — only open dictionary if it was truly a tap
-    const dx = e.clientX - startX;
-    const dy = e.clientY - startY;
-    const dist = Math.hypot(dx, dy);
-
-    if (dist < TAP_MOVE_THRESHOLD) {
+    const word = text.slice(start, end).replace(/[^a-zA-Z'\u2019-]/g, '');
+    if (word.length > 1) {
       haptic.wordTap();
-      const clean = word.replace(/[^a-zA-Z'\u2019-]/g, '');
-      if (clean.length > 1) openDictionary(clean);
+      openDictionary(word);
     }
-    // else: it was a scroll — do nothing
   }, [openDictionary]);
 
-  const handlePointerCancel = useCallback((e: React.PointerEvent<HTMLSpanElement>) => {
-    if (!pressState.current || e.pointerId !== pressState.current.pointerId) return;
-    if (pressState.current.timer) clearTimeout(pressState.current.timer);
-    pressState.current = null;
-  }, []);
+  // Apply formatted markup wrapper for custom annotations
+  const renderFormattedText = () => {
+    let rawText = paragraph.text;
+    if (annotations.length === 0) return rawText;
+
+    // Replace substrings by sorting annotations longest-first to prevent substring offsets
+    const sorted = [...annotations].sort((a, b) => (b.note?.length || 0) - (a.note?.length || 0));
+
+    let html = rawText;
+    for (const ann of sorted) {
+      if (!ann.note) continue;
+      const esc = ann.note.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+
+      if (ann.type === 'highlight') {
+        const colorVal = ann.color || '#FBBF24';
+        html = html.replace(
+          new RegExp(`(${esc})`, 'gi'),
+          `<mark style="background-color: ${colorVal}; color: inherit; padding: 2px 0; border-radius: 4px;">$1</mark>`
+        );
+      } else if (ann.type === 'underline') {
+        const colorVal = ann.color || 'var(--primary)';
+        html = html.replace(
+          new RegExp(`(${esc})`, 'gi'),
+          `<span style="text-decoration: underline; text-decoration-color: ${colorVal}; text-decoration-thickness: 2.5px; text-underline-offset: 3px;">$1</span>`
+        );
+      }
+    }
+
+    return <span dangerouslySetInnerHTML={{ __html: html }} />;
+  };
 
   return (
-    <div style={{ maxWidth: 680, width: '100%', padding: 0 }}>
+    <div style={{ padding: '0 4px' }}>
       <p
         className="paragraph-text"
-        style={{ margin: 0, padding: 0, lineHeight: 'var(--reader-line-height, 1.85)' }}
+        onClick={handleTextClick}
+        style={{
+          margin: 0,
+          color: 'var(--card-fg)',
+          userSelect: 'text',
+          WebkitUserSelect: 'text',
+          cursor: 'pointer',
+        }}
       >
-        {words.map((word, i) => (
-          <span
-            key={i}
-            onPointerDown={(e) => handlePointerDown(word, e)}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-            onPointerCancel={handlePointerCancel}
-            style={{
-              cursor: 'text',
-              WebkitTapHighlightColor: 'transparent',
-              borderRadius: 3,
-              padding: '2px 0',
-              touchAction: 'inherit', // inherit from parent
-            }}
-          >
-            {word}{i < words.length - 1 ? ' ' : ''}
-          </span>
-        ))}
+        {renderFormattedText()}
       </p>
     </div>
   );
