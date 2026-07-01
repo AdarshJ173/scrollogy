@@ -11,6 +11,7 @@ import HUD from '../components/HUD';
 import DictionaryPopup from '../components/DictionaryPopup';
 import ChapterSidebar from '../components/ChapterSidebar';
 import BookInfoSheet from './BookInfo';
+import { ChevronUp, ChevronDown, X } from 'lucide-react';
 
 const CARD_VARIANTS = {
   enter: {
@@ -60,6 +61,11 @@ export default function Reader() {
   
   const cardRef = useRef<HTMLDivElement>(null);
   const [cardHeight, setCardHeight] = useState(0);
+
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<number[]>([]);
+  const [currentResultIdx, setCurrentResultIdx] = useState(0);
 
   useEffect(() => {
     if (!currentBookId) return;
@@ -150,6 +156,11 @@ export default function Reader() {
     <div
       {...bind()}
       className="reader-root select-none"
+      onContextMenu={(e) => {
+        e.preventDefault();
+        haptic.hudToggle();
+        setShowSearchModal(true);
+      }}
       style={{
         position: 'fixed',
         inset: 0,
@@ -305,7 +316,192 @@ export default function Reader() {
         )}
       </motion.div>
 
-      <HUD progress={progress} />
+      {searchResults.length === 0 ? (
+        <HUD progress={progress} />
+      ) : (
+        <div style={{
+          position: 'fixed',
+          bottom: 'calc(env(safe-area-inset-bottom) + 16px)',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: 'min(90vw, 340px)',
+          height: 54,
+          background: 'var(--card)',
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
+          border: '1px solid var(--border)',
+          borderRadius: 27,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+          zIndex: 150,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 16px',
+        }}>
+          <span style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 600, color: 'var(--muted-fg)', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ color: 'var(--primary)' }}>🔍</span> "{searchQuery.slice(0, 10)}{searchQuery.length > 10 ? '...' : ''}"
+          </span>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 700, color: 'var(--card-fg)' }}>
+              {currentResultIdx + 1} of {searchResults.length}
+            </span>
+            
+            <button
+              onClick={() => {
+                haptic.wordTap();
+                const nextIdx = (currentResultIdx - 1 + searchResults.length) % searchResults.length;
+                setCurrentResultIdx(nextIdx);
+                goToParagraph(searchResults[nextIdx]);
+              }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
+            >
+              <ChevronUp size={18} color="var(--primary)" />
+            </button>
+
+            <button
+              onClick={() => {
+                haptic.wordTap();
+                const nextIdx = (currentResultIdx + 1) % searchResults.length;
+                setCurrentResultIdx(nextIdx);
+                goToParagraph(searchResults[nextIdx]);
+              }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
+            >
+              <ChevronDown size={18} color="var(--primary)" />
+            </button>
+
+            <button
+              onClick={() => {
+                haptic.drawerClose();
+                setSearchResults([]);
+                setSearchQuery('');
+              }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
+            >
+              <X size={18} color="var(--muted-fg)" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Center Search Input Modal */}
+      <AnimatePresence>
+        {showSearchModal && (
+          <div style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.18)',
+            backdropFilter: 'blur(3px)',
+            WebkitBackdropFilter: 'blur(3px)',
+            zIndex: 210,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20
+          }}>
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              style={{
+                background: 'var(--card)',
+                border: '1px solid var(--border)',
+                borderRadius: 20,
+                padding: 20,
+                width: 'min(90vw, 340px)',
+                boxShadow: '0 12px 36px rgba(0,0,0,0.15)'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <span style={{ fontFamily: 'Merriweather', fontSize: 16, fontWeight: 700, color: 'var(--card-fg)' }}>
+                  Search in Book
+                </span>
+                <button
+                  onClick={() => setShowSearchModal(false)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
+                >
+                  <X size={16} color="var(--muted-fg)" />
+                </button>
+              </div>
+
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                if (!searchQuery.trim()) return;
+                const paras = await db.paragraphs.where('bookId').equals(currentBookId!).toArray();
+                const matches = paras
+                  .filter(p => p.text.toLowerCase().includes(searchQuery.toLowerCase()))
+                  .map(p => p.index);
+                
+                if (matches.length > 0) {
+                  setSearchResults(matches);
+                  setCurrentResultIdx(0);
+                  goToParagraph(matches[0]);
+                  setShowSearchModal(false);
+                  haptic.importSuccess();
+                } else {
+                  alert('No matches found for "' + searchQuery + '"');
+                  haptic.error();
+                }
+              }}>
+                <input
+                  autoFocus
+                  type="text"
+                  placeholder="Type word or phrase..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '12px 14px',
+                    border: '1px solid var(--border)',
+                    borderRadius: 10,
+                    background: 'var(--secondary)',
+                    color: 'var(--card-fg)',
+                    fontFamily: 'Inter',
+                    fontSize: 14,
+                    outline: 'none',
+                    marginBottom: 16
+                  }}
+                />
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowSearchModal(false)}
+                    style={{
+                      padding: '8px 16px',
+                      border: 'none',
+                      background: 'none',
+                      color: 'var(--muted-fg)',
+                      fontFamily: 'Inter',
+                      fontSize: 13,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    style={{
+                      padding: '8px 16px',
+                      border: 'none',
+                      borderRadius: 8,
+                      background: 'var(--primary)',
+                      color: '#fff',
+                      fontFamily: 'Inter',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Search
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {isDictionaryOpen && <DictionaryPopup />}
       </AnimatePresence>
