@@ -7,7 +7,7 @@ import { haptic } from '../engine/HapticEngine';
 import type { ChapterEntry } from '../db/dexie';
 
 export default function ChapterSidebar() {
-  const { currentBookId, closeChapterSidebar, goToParagraph, currentParagraphIndex } = useReaderStore();
+  const { currentBookId, closeChapterSidebar, goToParagraph, currentParagraphIndex, totalParagraphs } = useReaderStore();
   const [chapters, setChapters] = useState<ChapterEntry[]>([]);
 
   useEffect(() => {
@@ -15,8 +15,28 @@ export default function ChapterSidebar() {
     db.chapters
       .where('bookId').equals(currentBookId)
       .sortBy('chapterIndex')
-      .then(setChapters);
-  }, [currentBookId]);
+      .then(list => {
+        if (list.length > 0) {
+          setChapters(list);
+        } else if (totalParagraphs > 0) {
+          // Fallback: Auto-generate virtual sections every 40 paragraphs for legacy or unstructured files
+          const virtualList: ChapterEntry[] = [];
+          const SECTION_SIZE = 40;
+          const totalSections = Math.ceil(totalParagraphs / SECTION_SIZE);
+          for (let i = 0; i < totalSections; i++) {
+            const firstParaIdx = i * SECTION_SIZE;
+            virtualList.push({
+              id: -(i + 1),
+              bookId: currentBookId,
+              chapterIndex: i,
+              chapterTitle: `Section ${i + 1} (Para ${firstParaIdx + 1})`,
+              firstParagraphIndex: firstParaIdx,
+            });
+          }
+          setChapters(virtualList);
+        }
+      });
+  }, [currentBookId, totalParagraphs]);
 
   // Determine active chapter
   const activeChapterIndex = chapters.reduce((acc, ch) => {
