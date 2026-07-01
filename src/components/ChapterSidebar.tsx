@@ -1,142 +1,106 @@
-import { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { X } from 'lucide-react';
+import { db } from '../db/dexie';
 import { useReaderStore } from '../store/useReaderStore';
 import { haptic } from '../engine/HapticEngine';
-import { db } from '../db/dexie';
+import type { ChapterEntry } from '../db/dexie';
 
 export default function ChapterSidebar() {
-  const { closeChapterSidebar, goToParagraph, currentParagraphIndex, currentBookId } = useReaderStore();
-  const [chapters, setChapters] = useState<{ chapterIndex: number; title: string; startIndex: number }[]>([]);
+  const { currentBookId, closeChapterSidebar, goToParagraph, currentParagraphIndex } = useReaderStore();
+  const [chapters, setChapters] = useState<ChapterEntry[]>([]);
 
-  // Load unique chapters on mount
   useEffect(() => {
     if (!currentBookId) return;
-
-    db.paragraphs
+    db.chapters
       .where('bookId').equals(currentBookId)
-      .toArray()
-      .then(paras => {
-        const list: { chapterIndex: number; title: string; startIndex: number }[] = [];
-        const seen = new Set<number>();
-        
-        for (const p of paras) {
-          if (!seen.has(p.chapterIndex)) {
-            seen.add(p.chapterIndex);
-            list.push({
-              chapterIndex: p.chapterIndex,
-              title: p.chapterTitle || `Chapter ${p.chapterIndex + 1}`,
-              startIndex: p.index,
-            });
-          }
-        }
-        setChapters(list);
-      });
+      .sortBy('chapterIndex')
+      .then(setChapters);
   }, [currentBookId]);
 
-  // Find which chapter is currently active
-  const activeChapterIndex = useMemo(() => {
-    let activeIdx = 0;
-    for (let i = 0; i < chapters.length; i++) {
-      if (currentParagraphIndex >= chapters[i].startIndex) {
-        activeIdx = chapters[i].chapterIndex;
-      } else {
-        break;
-      }
-    }
-    return activeIdx;
-  }, [chapters, currentParagraphIndex]);
-
-  const handleChapterClick = (startIndex: number) => {
-    haptic.drawerClose();
-    goToParagraph(startIndex);
-    closeChapterSidebar();
-  };
+  // Determine active chapter
+  const activeChapterIndex = chapters.reduce((acc, ch) => {
+    if (ch.firstParagraphIndex <= currentParagraphIndex) return ch.chapterIndex;
+    return acc;
+  }, 0);
 
   return (
-    <>
-      {/* Backdrop */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 0.4 }}
-        exit={{ opacity: 0 }}
-        onClick={() => {
-          haptic.drawerClose();
-          closeChapterSidebar();
-        }}
-        style={{
-          position: 'fixed',
-          inset: 0,
-          background: '#000',
-          zIndex: 80,
-        }}
-      />
+    <motion.div
+      initial={{ x: '-100%' }}
+      animate={{ x: 0 }}
+      exit={{ x: '-100%' }}
+      transition={{ type: 'spring', stiffness: 340, damping: 32 }}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        bottom: 0,
+        width: 'min(80vw, 320px)',
+        background: 'var(--card)',
+        borderRight: '1px solid var(--border)',
+        zIndex: 200,
+        display: 'flex',
+        flexDirection: 'column',
+        paddingTop: 'env(safe-area-inset-top)',
+      }}
+    >
+      {/* Header */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '20px 20px 12px',
+        borderBottom: '1px solid var(--border)',
+      }}>
+        <span style={{ fontFamily: 'Merriweather, serif', fontSize: 16, color: 'var(--card-fg)', fontWeight: 700 }}>
+          Contents
+        </span>
+        <button
+          onClick={() => { closeChapterSidebar(); haptic.drawerClose(); }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 8 }}
+        >
+          <X size={18} color="var(--muted-fg)" />
+        </button>
+      </div>
 
-      {/* Sidebar Panel */}
-      <motion.div
-        initial={{ x: '-100%' }}
-        animate={{ x: 0 }}
-        exit={{ x: '-100%' }}
-        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        style={{
-          position: 'fixed',
-          top: 0,
-          bottom: 0,
-          left: 0,
-          width: '80%',
-          maxWidth: '320px',
-          background: 'var(--card)',
-          borderRight: '1px solid var(--border)',
-          zIndex: 90,
-          padding: '24px 16px',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-          <h3 style={{ margin: 0, fontFamily: 'Merriweather', color: 'var(--card-fg)', fontSize: 18 }}>
-            Chapters
-          </h3>
-          <button
-            onClick={() => {
-              haptic.drawerClose();
-              closeChapterSidebar();
-            }}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
-          >
-            <X size={20} color="var(--muted-fg)" />
-          </button>
-        </div>
-
-        {/* Chapters List */}
-        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {chapters.map((ch) => {
-            const isActive = ch.chapterIndex === activeChapterIndex;
-            return (
-              <button
-                key={ch.chapterIndex}
-                onClick={() => handleChapterClick(ch.startIndex)}
-                style={{
-                  textAlign: 'left',
-                  padding: '12px 16px',
-                  borderRadius: 12,
-                  background: isActive ? 'var(--secondary)' : 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: isActive ? 'var(--primary)' : 'var(--fg)',
-                  fontFamily: 'Inter',
-                  fontSize: 14,
-                  fontWeight: isActive ? 600 : 400,
-                  transition: 'background 0.2s',
-                }}
-              >
-                {ch.title}
-              </button>
-            );
-          })}
-        </div>
-      </motion.div>
-    </>
+      {/* Chapter list */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+        {chapters.length === 0 && (
+          <p style={{ padding: '20px', color: 'var(--muted-fg)', fontFamily: 'Inter', fontSize: 14 }}>
+            No chapters detected
+          </p>
+        )}
+        {chapters.map(ch => {
+          const isActive = ch.chapterIndex === activeChapterIndex;
+          return (
+            <button
+              key={ch.id}
+              onClick={() => {
+                goToParagraph(ch.firstParagraphIndex);
+                haptic.nextParagraph();
+                closeChapterSidebar();
+              }}
+              style={{
+                display: 'block',
+                width: '100%',
+                textAlign: 'left',
+                padding: '14px 20px',
+                background: isActive ? 'var(--secondary)' : 'none',
+                border: 'none',
+                borderLeft: isActive ? '3px solid var(--primary)' : '3px solid transparent',
+                cursor: 'pointer',
+                fontFamily: 'Merriweather, serif',
+                fontSize: 14,
+                color: isActive ? 'var(--primary)' : 'var(--card-fg)',
+                lineHeight: 1.5,
+                transition: 'background 0.15s',
+              }}
+            >
+              {ch.chapterTitle}
+            </button>
+          );
+        })}
+      </div>
+    </motion.div>
   );
 }

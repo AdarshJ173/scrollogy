@@ -2,154 +2,240 @@ import ePub from 'epubjs';
 import { splitIntoParagraphs } from './ParagraphSplitter';
 import type { Paragraph } from '../db/dexie';
 
+export interface ChapterBoundary {
+  chapterIndex: number;
+  chapterTitle: string;
+  firstParagraphIndex: number;
+}
+
 export interface ParsedBook {
   title: string;
   author: string;
   coverUrl?: string;
   paragraphs: Omit<Paragraph, 'id' | 'bookId'>[];
+  chapters: ChapterBoundary[];
 }
 
-const MIN_CHARS = 20;
-const MIN_WORDS = 4;
+const JUNK_SPINE_HREF_PATTERNS = [
+  'cover', 'titlepage', 'title-page', 'title_page',
+  'copyright', 'copyrights', 'rights',
+  'toc', 'table-of-contents', 'contents',
+  'dedication', 'epigraph', 'colophon',
+  'about', 'halftitle', 'half-title', 'frontmatter',
+  'backmatter', 'acknowledgment', 'acknowledgement',
+  'license', 'licence', 'legalnotice', 'legal-notice',
+  'nav', 'ncx',
+];
 
-async function blobUrlToBase64(blobUrl: string): Promise<string> {
-  const res = await fetch(blobUrl);
-  const blob = await res.blob();
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
+const JUNK_TEXT_PHRASES = [
+  'project gutenberg', 'gutenberg license', 'gutenberg-tm',
+  'terms of use', 'electronic works', 'electronic work',
+  'copyright (c)', 'copyright ©', 'all rights reserved',
+  'isbn', 'library of congress', 'cataloging-in-publication',
+  'printed in', 'first published', 'first edition',
+  'no part of this', 'reproduction prohibited',
+  'permission of the publisher', 'prior written permission',
+  'trademark', 'registered trademark',
+  'visit our website', 'www.', 'http://', 'https://',
+  'ebook edition', 'digital edition', 'kindle edition',
+  'mobi edition', 'epub edition',
+  'for more information', 'for permissions',
+  'distribution of this', 'public domain',
+  'this book may not be', 'may not be reproduced',
+];
+
+function isJunkSpineHref(href: string): boolean {
+  const lower = href.toLowerCase().replace(/[\\/._-]/g, '');
+  return JUNK_SPINE_HREF_PATTERNS.some(pat => lower.includes(pat.replace(/-/g, '')));
 }
+
+function isJunkParagraph(text: string): boolean {
+  const lower = text.toLowerCase();
+  
+  if (JUNK_TEXT_PHRASES.some(phrase => lower.includes(phrase))) return true;
+  if (text.length < 20) return true;
+  
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length < 4) return true;
+  if (/^\d+$/.test(text.trim())) return true;
+  if (/^[IVXLCDM]+\.?$/i.test(text.trim())) return true;
+  
+  const upperCount = (text.match(/[A-Z]/g) || []).length;
+  const letterCount = (text.match(/[a-zA-Z]/g) || []).length;
+  if (letterCount > 0 && upperCount / letterCount > 0.55 && words.length < 15) return true;
+  
+  if (/^(chapter|part|section|book)\s+(one|two|three|four|five|six|seven|eight|nine|ten|\d+)\.?$/i.test(text.trim())) return true;
+  if (/^[\d\-X]{10,17}$/.test(text.replace(/\s/g, ''))) return true;
+  
+  return false;
+}
+
+function isJunkSpineByContent(bodyText: string): boolean {
+  const stripped = bodyText.replace(/\s+/g, ' ').trim();
+  if (stripped.length < 150) return true;
+  
+  const lower = stripped.toLowerCase();
+  const junkHits = JUNK_TEXT_PHRASES.filter(p => lower.includes(p)).length;
+  if (junkHits >= 2 && stripped.length < 500) return true;
+  
+  return false;
+}
+
+const BLOCK_TAGS = new Set([
+  'P', 'LI', 'BLOCKQUOTE', 'TD', 'TH',
+  'FIGCAPTION', 'DT', 'DD', 'SECTION',
+]);
 
 function extractTextBlocks(doc: Document): string[] {
   const blocks: string[] = [];
   const body = doc.body;
   if (!body) return blocks;
 
-  // Walk all elements. For each, only take text if it is a "leaf-level" block
-  // (i.e. does not contain other block-level children that we'd separately capture)
-  const BLOCK_TAGS = new Set(['P', 'LI', 'BLOCKQUOTE', 'TD', 'TH', 'FIGCAPTION', 'DT', 'DD']);
-  const DIV_TAG = 'DIV';
-
   function walk(node: Element) {
     const tag = node.tagName?.toUpperCase();
 
     if (BLOCK_TAGS.has(tag)) {
-      // Take this node's full text — don't recurse into children separately
-      const text = node.textContent?.replace(/\s+/g, ' ').trim() || '';
-      if (text.length >= MIN_CHARS && text.split(/\s+/).length >= MIN_WORDS) {
-        // Run hard cap on individual elements too
-        const capped = splitIntoParagraphs(text); // reuse splitter on element text
-        blocks.push(...capped);
-      }
-      return; // do NOT recurse
-    }
-
-    if (tag === DIV_TAG) {
-      // Check if this div has direct text content (not just inside child elements)
-      let directText = '';
-      for (const child of node.childNodes) {
-        if (child.nodeType === Node.TEXT_NODE) {
-          directText += child.textContent || '';
+      const text = node.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+      if (!isJunkParagraph(text)) {
+        const capped = splitIntoParagraphs(text);
+        for (const p of capped) {
+          if (!isJunkParagraph(p)) blocks.push(p);
         }
-      }
-      directText = directText.replace(/\s+/g, ' ').trim();
-      if (directText.length >= MIN_CHARS && directText.split(/\s+/).length >= MIN_WORDS) {
-        blocks.push(...splitIntoParagraphs(directText));
-      }
-      // Recurse into div children
-      for (const child of node.children) {
-        walk(child);
       }
       return;
     }
 
-    // For all other elements (section, article, aside, etc.) — recurse
-    for (const child of node.children) {
-      walk(child);
+    if (tag === 'DIV') {
+      let directText = '';
+      for (const child of node.childNodes) {
+        if (child.nodeType === Node.TEXT_NODE) {
+          directText += child.textContent ?? '';
+        }
+      }
+      directText = directText.replace(/\s+/g, ' ').trim();
+      if (directText.length >= 20 && !isJunkParagraph(directText)) {
+        const capped = splitIntoParagraphs(directText);
+        for (const p of capped) {
+          if (!isJunkParagraph(p)) blocks.push(p);
+        }
+      }
+      for (const child of node.children) walk(child);
+      return;
     }
+
+    for (const child of node.children) walk(child);
   }
 
   walk(body);
   return blocks;
 }
 
-function loadDocument(htmlOrDoc: string | Document): Document {
-  if (typeof htmlOrDoc === 'string') {
-    return new DOMParser().parseFromString(htmlOrDoc, 'text/html');
+function loadDocument(raw: string | Document): Document {
+  if (typeof raw === 'string') {
+    return new DOMParser().parseFromString(raw, 'text/html');
   }
-  return htmlOrDoc as Document;
+  return raw as Document;
+}
+
+async function blobUrlToBase64(blobUrl: string): Promise<string> {
+  const res  = await fetch(blobUrl);
+  const blob = await res.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror   = reject;
+    reader.readAsDataURL(blob);
+  });
 }
 
 export async function parseEpub(
   arrayBuffer: ArrayBuffer,
   fileName: string
 ): Promise<ParsedBook> {
-  const book = ePub(arrayBuffer);
+  const book  = ePub(arrayBuffer);
   await book.ready;
 
-  const meta = book.packaging.metadata;
-  const title = meta.title || fileName.replace(/\.epub$/i, '');
+  const meta   = book.packaging.metadata;
+  const title  = meta.title  || fileName.replace(/\.epub$/i, '');
   const author = meta.creator || 'Unknown Author';
 
   let coverUrl: string | undefined;
   try {
-    const rawCover = await book.coverUrl();
-    if (rawCover) coverUrl = await blobUrlToBase64(rawCover);
+    const raw = await book.coverUrl();
+    if (raw) coverUrl = await blobUrlToBase64(raw);
   } catch {}
 
-  const spine = book.spine as any;
+  const spine    = book.spine as any;
   const paragraphs: Omit<Paragraph, 'id' | 'bookId'>[] = [];
+  const chapters: ChapterBoundary[] = [];
   let globalIndex = 0;
 
   for (let ci = 0; ci < spine.items.length; ci++) {
     const spineItem = spine.items[ci];
+
+    if (isJunkSpineHref(spineItem.href ?? '')) continue;
+
+    let raw: string | Document;
     try {
-      const raw = await book.load(spineItem.href);
-      const doc = loadDocument(raw as string | Document);
-      const chapterTitle =
-        doc.querySelector('h1, h2, h3')?.textContent?.trim() ||
-        `Chapter ${ci + 1}`;
-
-      const blocks = extractTextBlocks(doc);
-
-      for (const text of blocks) {
-        paragraphs.push({
-          index: globalIndex++,
-          chapterIndex: ci,
-          chapterTitle,
-          text,
-          wordCount: text.split(/\s+/).length,
-        });
-      }
+      raw = await book.load(spineItem.href) as string | Document;
     } catch (e) {
-      console.warn(`[FOLIO] Failed to parse spine item ${ci}:`, e);
+      console.warn(`[FOLIO] Cannot load spine item ${ci}:`, e);
+      continue;
+    }
+
+    const doc = loadDocument(raw);
+    const bodyText = doc.body?.textContent ?? '';
+
+    if (isJunkSpineByContent(bodyText)) continue;
+
+    const chapterTitle =
+      doc.querySelector('h1, h2, h3')?.textContent?.trim() ||
+      `Chapter ${chapters.length + 1}`;
+
+    const blocks = extractTextBlocks(doc);
+    if (blocks.length === 0) continue;
+
+    chapters.push({
+      chapterIndex: ci,
+      chapterTitle,
+      firstParagraphIndex: globalIndex,
+    });
+
+    for (const text of blocks) {
+      paragraphs.push({
+        index: globalIndex++,
+        chapterIndex: ci,
+        chapterTitle,
+        text,
+        wordCount: text.split(/\s+/).length,
+      });
     }
   }
 
-  // Fallback: raw text extraction if DOM walk yielded nothing
   if (paragraphs.length === 0) {
     let fi = 0;
     for (let ci = 0; ci < spine.items.length; ci++) {
+      if (isJunkSpineHref(spine.items[ci].href ?? '')) continue;
       try {
-        const raw = await book.load(spine.items[ci].href);
-        const doc = loadDocument(raw as string | Document);
-        const rawText = doc.body?.textContent || '';
-        const splits = splitIntoParagraphs(rawText);
+        const raw = await book.load(spine.items[ci].href) as string | Document;
+        const doc = loadDocument(raw);
+        const raw_text = doc.body?.textContent ?? '';
+        if (isJunkSpineByContent(raw_text)) continue;
+        const splits = splitIntoParagraphs(raw_text);
         for (const text of splits) {
-          paragraphs.push({
-            index: fi++,
-            chapterIndex: ci,
-            chapterTitle: `Chapter ${ci + 1}`,
-            text,
-            wordCount: text.split(/\s+/).length,
-          });
+          if (!isJunkParagraph(text)) {
+            paragraphs.push({
+              index: fi++,
+              chapterIndex: ci,
+              chapterTitle: `Chapter ${ci + 1}`,
+              text,
+              wordCount: text.split(/\s+/).length,
+            });
+          }
         }
       } catch {}
     }
   }
 
-  return { title, author, coverUrl, paragraphs };
+  return { title, author, coverUrl, paragraphs, chapters };
 }

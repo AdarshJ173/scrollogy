@@ -6,7 +6,7 @@ export interface Book {
   author: string;
   fileName: string;
   fileType: 'pdf' | 'epub';
-  fileData: ArrayBuffer;       // store raw file in IndexedDB
+  fileData: ArrayBuffer;
   coverUrl?: string;
   totalParagraphs: number;
   addedAt: Date;
@@ -16,7 +16,7 @@ export interface Book {
 export interface Paragraph {
   id?: number;
   bookId: number;
-  index: number;               // paragraph position in book (0-based)
+  index: number;
   chapterIndex: number;
   chapterTitle: string;
   text: string;
@@ -29,7 +29,7 @@ export interface ReadingProgress {
   currentParagraphIndex: number;
   lastReadAt: Date;
   totalReadingTimeMs: number;
-  paragraphsRead: number;      // for streak/gamification
+  paragraphsRead: number;
 }
 
 export interface Annotation {
@@ -48,21 +48,31 @@ export interface DictionaryCache {
   cachedAt: Date;
 }
 
+export interface ChapterEntry {
+  id?: number;
+  bookId: number;
+  chapterIndex: number;
+  chapterTitle: string;
+  firstParagraphIndex: number;
+}
+
 export class FolioDB extends Dexie {
   books!: Table<Book>;
   paragraphs!: Table<Paragraph>;
   progress!: Table<ReadingProgress>;
   annotations!: Table<Annotation>;
   dictionary!: Table<DictionaryCache>;
+  chapters!: Table<ChapterEntry>;
 
   constructor() {
     super('FolioDB');
-    this.version(2).stores({
+    this.version(3).stores({
       books:       '++id, title, author, fileType, addedAt, lastOpenedAt',
       paragraphs:  '++id, bookId, index, chapterIndex',
       progress:    '++id, bookId',
       annotations: '++id, bookId, paragraphIndex, type',
       dictionary:  'word',
+      chapters:    '++id, bookId, chapterIndex',
     });
   }
 }

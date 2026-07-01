@@ -57,6 +57,12 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       const paragraphsWithBookId = parsed.paragraphs.map(p => ({ ...p, bookId }));
       await db.paragraphs.bulkAdd(paragraphsWithBookId);
 
+      // Bulk insert chapters
+      if (parsed.chapters && parsed.chapters.length > 0) {
+        const chaptersWithBookId = parsed.chapters.map(c => ({ ...c, bookId }));
+        await db.chapters.bulkAdd(chaptersWithBookId);
+      }
+
       set({ importProgress: 100 });
       await get().loadLibrary();
     } finally {
@@ -69,6 +75,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     await db.paragraphs.where('bookId').equals(id).delete();
     await db.annotations.where('bookId').equals(id).delete();
     await db.progress.where('bookId').equals(id).delete();
+    await db.chapters.where('bookId').equals(id).delete();
     await get().loadLibrary();
   },
 }));
