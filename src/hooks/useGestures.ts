@@ -3,7 +3,7 @@ import { haptic } from '../engine/HapticEngine';
 import { useReaderStore } from '../store/useReaderStore';
 import { useAnnotationStore } from '../store/useAnnotationStore';
 
-export function useReaderGestures() {
+export function useReaderGestures(onDragOffset: (y: number) => void) {
   const { 
     nextParagraph, prevParagraph, 
     toggleHUD, currentParagraphIndex,
@@ -40,8 +40,14 @@ export function useReaderGestures() {
         return;
       }
       
+      // Pass real-time dragging Y movement to visual container
+      onDragOffset(my);
+      
       if (last) {
-        // Vertical scroll/swipe
+        // Reset translation offset on release
+        onDragOffset(0);
+        
+        // Vertical scroll/swipe (threshold = 60px)
         if (my < -60 || sy === -1) { 
           nextParagraph(); 
           haptic.nextParagraph(); 

@@ -135,6 +135,8 @@ export default function Reader() {
       });
   }, [currentBookId, currentParagraphIndex, isLoaded]);
 
+  const [dragY, setDragY] = useState(0);
+
   const direction = currentParagraphIndex > prevIndexRef.current ? 1 : -1;
   prevIndexRef.current = currentParagraphIndex;
 
@@ -142,7 +144,7 @@ export default function Reader() {
     ? (currentParagraphIndex / totalParagraphs) * 100 
     : 0;
 
-  const bind = useReaderGestures();
+  const bind = useReaderGestures(setDragY);
 
   return (
     <div
@@ -198,7 +200,16 @@ export default function Reader() {
               custom={direction}
               variants={PARAGRAPH_VARIANTS}
               initial="enter"
-              animate="center"
+              animate={{
+                y: dragY,
+                opacity: 1,
+                scale: 1,
+                transition: {
+                  type: 'spring',
+                  stiffness: 280,
+                  damping: 26,
+                }
+              }}
               exit="exit"
               style={{
                 display: 'flex',

@@ -14,8 +14,11 @@ export default function ParagraphCard({ paragraph }: Props) {
   // Render paragraph as span elements to support word-level interactions
   const words = paragraph.text.split(/\s+/);
 
+  const coordsRef = useRef({ x: 0, y: 0 });
+
   const handleWordPointerDown = useCallback((word: string, e: React.PointerEvent) => {
     e.stopPropagation();
+    coordsRef.current = { x: e.clientX, y: e.clientY };
     longPressRef.current = setTimeout(() => {
       haptic.longPress();
       openDictionary(word.replace(/[^a-zA-Z'-]/g, ''));
@@ -25,12 +28,20 @@ export default function ParagraphCard({ paragraph }: Props) {
 
   const handleWordPointerUp = useCallback((word: string, e: React.PointerEvent) => {
     e.stopPropagation();
+    const dragDistance = Math.hypot(
+      e.clientX - coordsRef.current.x,
+      e.clientY - coordsRef.current.y
+    );
+    
     if (longPressRef.current) {
       clearTimeout(longPressRef.current);
       longPressRef.current = null;
-      // Single tap = quick dictionary lookup
-      haptic.wordTap();
-      openDictionary(word.replace(/[^a-zA-Z'-]/g, ''));
+      
+      // Only open if the user didn't drag/scroll (threshold = 6px)
+      if (dragDistance < 6) {
+        haptic.wordTap();
+        openDictionary(word.replace(/[^a-zA-Z'-]/g, ''));
+      }
     }
   }, [openDictionary]);
 
